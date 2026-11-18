@@ -1,0 +1,215 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidSessionCode(code) {
+      return code is string && code.matches('^[0-9]{6}$');
+    }
+
+    function isValidSurvey(data) {
+      return data.keys().hasAll(['ownerUid', 'title', 'templateType', 'questions', 'allowAnonymous', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerUid', 'title', 'eventInfo', 'templateType', 'questions', 'allowAnonymous', 'activeSessionCode', 'createdAt', 'updatedAt'])
+        && data.ownerUid is string
+        && isValidId(data.ownerUid)
+        && data.ownerUid == request.auth.uid
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 160
+        && (!('eventInfo' in data) || (data.eventInfo is string && data.eventInfo.size() <= 160))
+        && data.templateType is string
+        && data.templateType in ['persepsi_awal', 'ekspektasi', 'evaluasi_akhir', 'kosong']
+        && data.questions is list
+        && data.questions.size() <= 30
+        && (data.questions.size() == 0 || data.questions[0] is map)
+        && data.allowAnonymous is bool
+        && (!('activeSessionCode' in data) || (data.activeSessionCode is string && (data.activeSessionCode == '' || isValidSessionCode(data.activeSessionCode))))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSession(data) {
+      return data.keys().hasAll(['surveyId', 'ownerUid', 'surveyTitle', 'allowAnonymous', 'questions', 'status', 'activeQuestionId', 'showResults', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['surveyId', 'ownerUid', 'surveyTitle', 'eventInfo', 'allowAnonymous', 'questions', 'status', 'activeQuestionId', 'showResults', 'createdAt', 'updatedAt'])
+        && isValidId(data.surveyId)
+        && data.ownerUid is string
+        && isValidId(data.ownerUid)
+        && data.ownerUid == request.auth.uid
+        && data.surveyTitle is string
+        && data.surveyTitle.size() >= 1
+        && data.surveyTitle.size() <= 160
+        && (!('eventInfo' in data) || (data.eventInfo is string && data.eventInfo.size() <= 160))
+        && data.allowAnonymous is bool
+        && data.questions is list
+        && data.questions.size() <= 30
+        && (data.questions.size() == 0 || data.questions[0] is map)
+        && data.status is string
+        && data.status in ['aktif', 'ditutup', 'menunggu', 'selesai']
+        && data.activeQuestionId is string
+        && data.activeQuestionId.size() <= 128
+        && data.showResults is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidParticipant(data) {
+      return data.keys().hasAll(['name', 'joinedAt'])
+        && data.keys().hasOnly(['name', 'joinedAt', 'isDemo'])
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 80
+        && (!('isDemo' in data) || data.isDemo is bool)
+        && data.joinedAt is timestamp;
+    }
+
+    function isValidResponseValue(val) {
+      return (val is int && val >= 1 && val <= 10)
+        || (val is string && val.size() >= 1 && val.size() <= 200)
+        || (val is list && val.size() >= 1 && val.size() <= 10 && val[0] is string && val[0].size() >= 1 && val[0].size() <= 120);
+    }
+
+    function isValidResponse(data) {
+      return data.keys().hasAll(['pid', 'name', 'questionId', 'value', 'updatedAt'])
+        && data.keys().hasOnly(['pid', 'name', 'questionId', 'value', 'updatedAt', 'isDemo'])
+        && data.pid is string
+        && data.pid.size() >= 6
+        && data.pid.size() <= 64
+        && data.pid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 80
+        && isValidId(data.questionId)
+        && isValidResponseValue(data.value)
+        && (!('isDemo' in data) || data.isDemo is bool)
+        && data.updatedAt is timestamp;
+    }
+
+    match /surveys/{surveyId} {
+      allow get: if isSignedIn() && isValidId(surveyId) && existing().ownerUid == request.auth.uid;
+      allow list: if isSignedIn() && existing().ownerUid == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(surveyId)
+        && isValidSurvey(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(surveyId)
+        && existing().ownerUid == request.auth.uid
+        && isValidSurvey(incoming())
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'eventInfo', 'templateType', 'questions', 'allowAnonymous', 'activeSessionCode', 'updatedAt']);
+      allow delete: if isVerifiedUser()
+        && isValidId(surveyId)
+        && existing().ownerUid == request.auth.uid;
+    }
+
+    match /sessions/{code} {
+      allow get: if isValidSessionCode(code) && (
+        existing().status in ['aktif', 'ditutup', 'menunggu', 'selesai']
+      );
+      allow list: if isSignedIn() && existing().ownerUid == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidSessionCode(code)
+        && isValidSession(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/surveys/$(incoming().surveyId))
+        && get(/databases/$(database)/documents/surveys/$(incoming().surveyId)).data.ownerUid == request.auth.uid;
+      allow update: if isVerifiedUser()
+        && isValidSessionCode(code)
+        && existing().ownerUid == request.auth.uid
+        && isValidSession(incoming())
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().surveyId == existing().surveyId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'activeQuestionId', 'showResults', 'surveyTitle', 'eventInfo', 'allowAnonymous', 'questions', 'updatedAt']);
+      allow delete: if isVerifiedUser()
+        && isValidSessionCode(code)
+        && existing().ownerUid == request.auth.uid;
+
+      match /participants/{pid} {
+        allow get: if isValidSessionCode(code)
+          && isValidId(pid)
+          && isSignedIn()
+          && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid;
+        allow list: if isValidSessionCode(code) && (
+          get(/databases/$(database)/documents/sessions/$(code)).data.status in ['aktif', 'ditutup', 'menunggu', 'selesai']
+          || (isSignedIn() && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid)
+        );
+        allow create: if isValidSessionCode(code)
+          && isValidId(pid)
+          && isValidParticipant(incoming())
+          && incoming().joinedAt == request.time
+          && exists(/databases/$(database)/documents/sessions/$(code))
+          && get(/databases/$(database)/documents/sessions/$(code)).data.status in ['aktif', 'menunggu']
+          && (incoming().name != 'Anonim' || get(/databases/$(database)/documents/sessions/$(code)).data.allowAnonymous == true);
+        allow update: if false;
+        allow delete: if isVerifiedUser()
+          && isValidSessionCode(code)
+          && isValidId(pid)
+          && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid;
+      }
+
+      match /responses/{responseId} {
+        allow get: if isValidSessionCode(code)
+          && isValidId(responseId)
+          && (
+            (isSignedIn() && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid)
+            || get(/databases/$(database)/documents/sessions/$(code)).data.status in ['aktif', 'ditutup', 'menunggu', 'selesai']
+          );
+        allow list: if isValidSessionCode(code) && (
+          get(/databases/$(database)/documents/sessions/$(code)).data.status in ['aktif', 'ditutup', 'menunggu', 'selesai']
+          || (isSignedIn() && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid)
+        );
+        allow create: if isValidSessionCode(code)
+          && isValidId(responseId)
+          && isValidResponse(incoming())
+          && responseId == (incoming().pid + '_' + incoming().questionId)
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/sessions/$(code))
+          && get(/databases/$(database)/documents/sessions/$(code)).data.status in ['aktif', 'menunggu']
+          && (incoming().name != 'Anonim' || get(/databases/$(database)/documents/sessions/$(code)).data.allowAnonymous == true);
+        allow update: if isValidSessionCode(code)
+          && isValidId(responseId)
+          && isValidResponse(incoming())
+          && responseId == (incoming().pid + '_' + incoming().questionId)
+          && incoming().pid == existing().pid
+          && incoming().questionId == existing().questionId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['value', 'name', 'updatedAt'])
+          && get(/databases/$(database)/documents/sessions/$(code)).data.status in ['aktif', 'menunggu'];
+        allow delete: if isVerifiedUser()
+          && isValidSessionCode(code)
+          && isValidId(responseId)
+          && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid;
+      }
+    }
+  }
+}

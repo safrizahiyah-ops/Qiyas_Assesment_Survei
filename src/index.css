@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --bg: #06100e;
+  --bg-header: #08140f;
+  --surface: #0c1b17;
+  --surface-2: #112620;
+  --border: #1c3d34;
+  --border-strong: #2a5a4c;
+
+  --toska: #2dd4bf;
+  --toska-soft: #5eead4;
+  --botol: #0f7a5c;
+  --botol-dark: #0a5a45;
+  --daun: #4ade80;
+  --daun-soft: #86efac;
+
+  --text: #ecfdf5;
+  --text-muted: #8fb5a9;
+  --text-on-accent: #04130e;
+
+  --gradient-brand: linear-gradient(135deg, #2dd4bf 0%, #0f7a5c 50%, #4ade80 100%);
+  --gradient-text: linear-gradient(90deg, #5eead4, #4ade80);
+  --gradient-cta: linear-gradient(135deg, #2dd4bf, #4ade80);
+  --gradient-soft: linear-gradient(135deg, rgba(45, 212, 191, 0.18), rgba(74, 222, 128, 0.1));
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    background-color: var(--bg);
+    color: var(--text);
+    scroll-behavior: smooth;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+  }
+}
+
+::selection {
+  background-color: rgba(45, 212, 191, 0.35);
+  color: var(--text);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--toska);
+}
+
+.gradient-brand-bg {
+  background: var(--gradient-brand);
+}
+
+.gradient-brand-text {
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gradient-hero-word {
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gradient-cta-bg {
+  background: var(--gradient-cta);
+  color: var(--text-on-accent);
+}
+
+.gradient-soft-bg {
+  background: var(--gradient-soft);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.text-balance {
+  text-wrap: balance;
+}

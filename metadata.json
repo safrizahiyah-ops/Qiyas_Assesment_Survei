@@ -1,0 +1,8 @@
+{
+  "name": "QalbyLearn - Assessment and Education",
+  "description": "Platform survei langsung (live polling) untuk pelatihan dan seminar. Peserta menjawab dari ponsel tanpa akun, hasil tampil langsung di layar proyektor.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,206 @@
+{
+  "entities": {
+    "Survey": {
+      "title": "Survey",
+      "description": "Survei pelatihan atau seminar yang dibuat oleh fasilitator.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pemilik survei (Fasilitator)."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "Judul survei."
+        },
+        "eventInfo": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Nama acara & tanggal pelatihan."
+        },
+        "templateType": {
+          "type": "string",
+          "enum": ["persepsi_awal", "ekspektasi", "evaluasi_akhir", "kosong"],
+          "description": "Jenis templat awal survei."
+        },
+        "questions": {
+          "type": "array",
+          "description": "Daftar pertanyaan dalam survei (maksimal 30 pertanyaan)."
+        },
+        "allowAnonymous": {
+          "type": "boolean",
+          "description": "Mengizinkan peserta menjawab secara anonim."
+        },
+        "activeSessionCode": {
+          "type": "string",
+          "maxLength": 6,
+          "description": "Kode sesi 6 digit aktif atau terakhir yang terhubung."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembuatan survei (server timestamp)."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan terakhir survei (server timestamp)."
+        }
+      },
+      "required": ["ownerUid", "title", "templateType", "questions", "allowAnonymous", "createdAt", "updatedAt"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "Sesi langsung berbasis kode 6 digit yang terhubung ke survei.",
+      "type": "object",
+      "properties": {
+        "surveyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID survei induk."
+        },
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID fasilitator pemilik sesi."
+        },
+        "surveyTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "Salinan judul survei untuk layar proyektor dan peserta."
+        },
+        "eventInfo": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Nama acara & tanggal pelatihan."
+        },
+        "allowAnonymous": {
+          "type": "boolean",
+          "description": "Salinan pengaturan anonim untuk peserta."
+        },
+        "questions": {
+          "type": "array",
+          "description": "Salinan daftar pertanyaan untuk tampilan real-time peserta & proyektor."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["aktif", "ditutup"],
+          "description": "Status sesi saat ini."
+        },
+        "activeQuestionId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "ID pertanyaan yang sedang aktif atau kosong."
+        },
+        "showResults": {
+          "type": "boolean",
+          "description": "Apakah grafik hasil ditampilkan ke peserta dan layar presentasi."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu sesi dibuka (server timestamp)."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu sesi terakhir diperbarui (server timestamp)."
+        }
+      },
+      "required": ["surveyId", "ownerUid", "surveyTitle", "allowAnonymous", "questions", "status", "activeQuestionId", "showResults", "createdAt", "updatedAt"]
+    },
+    "Participant": {
+      "title": "Participant",
+      "description": "Peserta yang bergabung ke dalam sesi survei.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Nama peserta atau 'Anonim'."
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu bergabung (server timestamp)."
+        },
+        "isDemo": {
+          "type": "boolean",
+          "description": "Penanda data simulasi peserta."
+        }
+      },
+      "required": ["name", "joinedAt"]
+    },
+    "Response": {
+      "title": "Response",
+      "description": "Jawaban peserta (satu dokumen per pid_questionId).",
+      "type": "object",
+      "properties": {
+        "pid": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID peserta lokal dari localStorage."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Nama peserta atau 'Anonim'."
+        },
+        "questionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID pertanyaan yang dijawab."
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Nilai jawaban (angka 1-10, string maks 200 karakter, atau array pilihan/kata)."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pengiriman/pembaruan jawaban (server timestamp)."
+        },
+        "isDemo": {
+          "type": "boolean",
+          "description": "Penanda data simulasi jawaban."
+        }
+      },
+      "required": ["pid", "name", "questionId", "value", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/surveys/{surveyId}": {
+      "schema": { "$ref": "#/entities/Survey" },
+      "description": "Koleksi survei milik masing-masing fasilitator."
+    },
+    "/sessions/{code}": {
+      "schema": { "$ref": "#/entities/Session" },
+      "description": "Koleksi sesi langsung yang diindeks dengan kode 6 digit."
+    },
+    "/sessions/{code}/participants/{pid}": {
+      "schema": { "$ref": "#/entities/Participant" },
+      "description": "Daftar peserta yang bergabung pada sesi tertentu."
+    },
+    "/sessions/{code}/responses/{responseId}": {
+      "schema": { "$ref": "#/entities/Response" },
+      "description": "Jawaban peserta dengan ID dokumen {pid}_{questionId}."
+    }
+  }
+}
