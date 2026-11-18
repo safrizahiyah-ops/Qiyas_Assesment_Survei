@@ -23,6 +23,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email_verified == true;
     }
 
+    function isAdminAccount(uid) {
+      return uid == 'admin_qiyas' || (isVerifiedUser() && uid == request.auth.uid);
+    }
+
     function isValidId(id) {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -36,7 +40,7 @@ service cloud.firestore {
         && data.keys().hasOnly(['ownerUid', 'title', 'eventInfo', 'templateType', 'questions', 'allowAnonymous', 'activeSessionCode', 'createdAt', 'updatedAt'])
         && data.ownerUid is string
         && isValidId(data.ownerUid)
-        && data.ownerUid == request.auth.uid
+        && isAdminAccount(data.ownerUid)
         && data.title is string
         && data.title.size() >= 1
         && data.title.size() <= 160
@@ -58,7 +62,7 @@ service cloud.firestore {
         && isValidId(data.surveyId)
         && data.ownerUid is string
         && isValidId(data.ownerUid)
-        && data.ownerUid == request.auth.uid
+        && isAdminAccount(data.ownerUid)
         && data.surveyTitle is string
         && data.surveyTitle.size() >= 1
         && data.surveyTitle.size() <= 160
@@ -109,59 +113,52 @@ service cloud.firestore {
     }
 
     match /surveys/{surveyId} {
-      allow get: if isSignedIn() && isValidId(surveyId) && existing().ownerUid == request.auth.uid;
-      allow list: if isSignedIn() && existing().ownerUid == request.auth.uid;
-      allow create: if isVerifiedUser()
-        && isValidId(surveyId)
+      allow get: if isValidId(surveyId) && isAdminAccount(existing().ownerUid);
+      allow list: if isAdminAccount(existing().ownerUid);
+      allow create: if isValidId(surveyId)
         && isValidSurvey(incoming())
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
-      allow update: if isVerifiedUser()
-        && isValidId(surveyId)
-        && existing().ownerUid == request.auth.uid
+      allow update: if isValidId(surveyId)
+        && isAdminAccount(existing().ownerUid)
         && isValidSurvey(incoming())
         && incoming().ownerUid == existing().ownerUid
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'eventInfo', 'templateType', 'questions', 'allowAnonymous', 'activeSessionCode', 'updatedAt']);
-      allow delete: if isVerifiedUser()
-        && isValidId(surveyId)
-        && existing().ownerUid == request.auth.uid;
+      allow delete: if isValidId(surveyId)
+        && isAdminAccount(existing().ownerUid);
     }
 
     match /sessions/{code} {
       allow get: if isValidSessionCode(code) && (
         existing().status in ['aktif', 'ditutup', 'menunggu', 'selesai']
       );
-      allow list: if isSignedIn() && existing().ownerUid == request.auth.uid;
-      allow create: if isVerifiedUser()
-        && isValidSessionCode(code)
+      allow list: if isAdminAccount(existing().ownerUid);
+      allow create: if isValidSessionCode(code)
         && isValidSession(incoming())
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time
         && exists(/databases/$(database)/documents/surveys/$(incoming().surveyId))
-        && get(/databases/$(database)/documents/surveys/$(incoming().surveyId)).data.ownerUid == request.auth.uid;
-      allow update: if isVerifiedUser()
-        && isValidSessionCode(code)
-        && existing().ownerUid == request.auth.uid
+        && get(/databases/$(database)/documents/surveys/$(incoming().surveyId)).data.ownerUid == incoming().ownerUid;
+      allow update: if isValidSessionCode(code)
+        && isAdminAccount(existing().ownerUid)
         && isValidSession(incoming())
         && incoming().ownerUid == existing().ownerUid
         && incoming().surveyId == existing().surveyId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'activeQuestionId', 'showResults', 'surveyTitle', 'eventInfo', 'allowAnonymous', 'questions', 'updatedAt']);
-      allow delete: if isVerifiedUser()
-        && isValidSessionCode(code)
-        && existing().ownerUid == request.auth.uid;
+      allow delete: if isValidSessionCode(code)
+        && isAdminAccount(existing().ownerUid);
 
       match /participants/{pid} {
         allow get: if isValidSessionCode(code)
           && isValidId(pid)
-          && isSignedIn()
-          && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid;
+          && isAdminAccount(get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid);
         allow list: if isValidSessionCode(code) && (
           get(/databases/$(database)/documents/sessions/$(code)).data.status in ['aktif', 'ditutup', 'menunggu', 'selesai']
-          || (isSignedIn() && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid)
+          || isAdminAccount(get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid)
         );
         allow create: if isValidSessionCode(code)
           && isValidId(pid)
@@ -171,22 +168,21 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/sessions/$(code)).data.status in ['aktif', 'menunggu']
           && (incoming().name != 'Anonim' || get(/databases/$(database)/documents/sessions/$(code)).data.allowAnonymous == true);
         allow update: if false;
-        allow delete: if isVerifiedUser()
-          && isValidSessionCode(code)
+        allow delete: if isValidSessionCode(code)
           && isValidId(pid)
-          && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid;
+          && isAdminAccount(get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid);
       }
 
       match /responses/{responseId} {
         allow get: if isValidSessionCode(code)
           && isValidId(responseId)
           && (
-            (isSignedIn() && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid)
+            isAdminAccount(get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid)
             || get(/databases/$(database)/documents/sessions/$(code)).data.status in ['aktif', 'ditutup', 'menunggu', 'selesai']
           );
         allow list: if isValidSessionCode(code) && (
           get(/databases/$(database)/documents/sessions/$(code)).data.status in ['aktif', 'ditutup', 'menunggu', 'selesai']
-          || (isSignedIn() && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid)
+          || isAdminAccount(get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid)
         );
         allow create: if isValidSessionCode(code)
           && isValidId(responseId)
@@ -205,10 +201,9 @@ service cloud.firestore {
           && incoming().updatedAt == request.time
           && incoming().diff(existing()).affectedKeys().hasOnly(['value', 'name', 'updatedAt'])
           && get(/databases/$(database)/documents/sessions/$(code)).data.status in ['aktif', 'menunggu'];
-        allow delete: if isVerifiedUser()
-          && isValidSessionCode(code)
+        allow delete: if isValidSessionCode(code)
           && isValidId(responseId)
-          && get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid == request.auth.uid;
+          && isAdminAccount(get(/databases/$(database)/documents/sessions/$(code)).data.ownerUid);
       }
     }
   }

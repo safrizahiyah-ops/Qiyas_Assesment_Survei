@@ -37,7 +37,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { useFirebase } from '../context/FirebaseContext';
+import { ADMIN_CREDENTIALS, useFirebase } from '../context/FirebaseContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
   buildParticipantJoinUrl,
@@ -141,10 +141,14 @@ export function FacilitatorPage() {
     authError,
     activeSessionCode,
     setActiveSessionCode,
-    signInWithGoogle,
+    signInWithAdmin,
     signOutUser,
     clearAuthError,
   } = useFirebase();
+
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [sessions, setSessions] = useState<LiveSession[]>([]);
@@ -1138,26 +1142,35 @@ export function FacilitatorPage() {
   }
 
   if (!user) {
+    const handleAdminLoginSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      await signInWithAdmin(adminUsername, adminPassword);
+    };
+
     return (
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-16 flex items-center justify-center">
-        <div className="max-w-md w-full bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-8 text-center shadow-2xl shadow-black/40">
-          <div className="w-12 h-12 rounded-2xl gradient-brand-bg flex items-center justify-center mx-auto mb-5 font-display font-extrabold text-xl text-white">
-            F
+        <form
+          onSubmit={handleAdminLoginSubmit}
+          className="max-w-md w-full bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-8 shadow-2xl shadow-black/40 space-y-6"
+        >
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-2xl gradient-brand-bg flex items-center justify-center mx-auto mb-5 font-display font-extrabold text-xl text-white">
+              A
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--toska)] mb-2">
+              RUANG FASILITATOR · ADMIN
+            </p>
+            <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[var(--text)] mb-3">
+              Masuk Akun Admin
+            </h1>
+            <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+              Masuk menggunakan akun admin untuk membuat survei, membuka sesi
+              langsung, dan mengunduh hasil. Peserta tetap bisa bergabung tanpa akun.
+            </p>
           </div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--toska)] mb-2">
-            RUANG FASILITATOR
-          </p>
-          <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[var(--text)] mb-3">
-            Masuk dengan Google
-          </h1>
-          <p className="text-sm text-[var(--text-muted)] leading-relaxed mb-6">
-            Login Google hanya diperlukan bagi fasilitator untuk membuat survei,
-            membuka sesi langsung, dan mengunduh hasil. Peserta tetap bisa
-            bergabung tanpa akun.
-          </p>
 
           {authError && (
-            <div className="mb-4 rounded-xl bg-[#f87171]/15 border border-[#f87171]/40 px-4 py-3 text-xs text-[#f87171] text-left">
+            <div className="rounded-xl bg-[#f87171]/15 border border-[#f87171]/40 px-4 py-3 text-xs text-[#f87171] text-left">
               <p>{authError}</p>
               <button
                 type="button"
@@ -1169,10 +1182,97 @@ export function FacilitatorPage() {
             </div>
           )}
 
+          <div className="space-y-4">
+            <div>
+              <label
+                htmlFor="admin-username"
+                className="block text-xs font-medium text-[var(--text-muted)] mb-1.5"
+              >
+                Username atau Email Admin
+              </label>
+              <input
+                id="admin-username"
+                type="text"
+                required
+                autoComplete="username"
+                value={adminUsername}
+                onChange={(e) => {
+                  setAdminUsername(e.target.value);
+                  if (authError) clearAuthError();
+                }}
+                placeholder="admin atau admin@qiyas.id"
+                className="w-full min-h-[46px] px-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] focus:border-[var(--toska)] focus:ring-2 focus:ring-[#2dd4bf]/20 focus:outline-none text-sm text-[var(--text)] placeholder:text-[var(--text-muted)]/50 transition-all"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="admin-password"
+                className="block text-xs font-medium text-[var(--text-muted)] mb-1.5"
+              >
+                Kata Sandi
+              </label>
+              <div className="relative">
+                <input
+                  id="admin-password"
+                  type={showAdminPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  value={adminPassword}
+                  onChange={(e) => {
+                    setAdminPassword(e.target.value);
+                    if (authError) clearAuthError();
+                  }}
+                  placeholder="Masukkan kata sandi admin"
+                  className="w-full min-h-[46px] pl-3.5 pr-11 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] focus:border-[var(--toska)] focus:ring-2 focus:ring-[#2dd4bf]/20 focus:outline-none text-sm text-[var(--text)] placeholder:text-[var(--text-muted)]/50 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPassword((prev) => !prev)}
+                  aria-label={
+                    showAdminPassword ? 'Sembunyikan kata sandi' : 'Lihat kata sandi'
+                  }
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--toska)] cursor-pointer"
+                >
+                  {showAdminPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-[var(--surface-2)]/80 border border-[var(--border)] px-3.5 py-3 text-xs text-[var(--text-muted)] space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-[var(--toska)] uppercase tracking-wider text-[10px]">
+                  Akun Admin Bawaan
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminUsername(ADMIN_CREDENTIALS.username);
+                    setAdminPassword(ADMIN_CREDENTIALS.password);
+                    clearAuthError();
+                  }}
+                  className="text-[11px] font-semibold text-[var(--toska-soft)] hover:underline cursor-pointer"
+                >
+                  Isi otomatis
+                </button>
+              </div>
+              <p className="font-mono text-[11px] text-[var(--text)]">
+                Username: <span className="text-[var(--toska-soft)]">{ADMIN_CREDENTIALS.username}</span>{' '}
+                ({ADMIN_CREDENTIALS.email})
+              </p>
+              <p className="font-mono text-[11px] text-[var(--text)]">
+                Kata sandi: <span className="text-[var(--daun-soft)]">{ADMIN_CREDENTIALS.password}</span>
+              </p>
+            </div>
+          </div>
+
           <button
-            type="button"
-            disabled={authLoading}
-            onClick={signInWithGoogle}
+            type="submit"
+            disabled={authLoading || !adminUsername.trim() || !adminPassword}
             className="w-full min-h-[50px] rounded-2xl gradient-cta-bg hover:brightness-110 hover:-translate-y-px disabled:opacity-40 disabled:pointer-events-none font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all cursor-pointer"
           >
             {authLoading ? (
@@ -1180,9 +1280,9 @@ export function FacilitatorPage() {
             ) : (
               <LogIn className="w-5 h-5" />
             )}
-            <span>Masuk dengan Akun Google</span>
+            <span>Masuk sebagai Admin</span>
           </button>
-        </div>
+        </form>
       </main>
     );
   }

@@ -1,10 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import {
-  auth,
   db,
-  googleProvider,
   handleFirestoreError,
   isFirebaseConfigured,
   OperationType,
@@ -13,29 +10,48 @@ import {
 import type { LiveSession } from '../types/survey';
 
 const ACTIVE_CODE_STORAGE_KEY = 'qiyas_active_code';
+const ADMIN_SESSION_STORAGE_KEY = 'qiyas_admin_session';
+
+export interface AdminUser {
+  uid: string;
+  email: string;
+  displayName: string;
+}
+
+export const ADMIN_ACCOUNT: AdminUser = {
+  uid: 'admin_qiyas',
+  email: 'admin@qiyas.id',
+  displayName: 'Admin Qiyas',
+};
+
+export const ADMIN_CREDENTIALS = {
+  username: 'admin',
+  email: 'admin@qiyas.id',
+  password: 'QiyasAdmin#2026',
+};
 
 interface FirebaseContextValue {
-  user: User | null;
+  user: AdminUser | null;
   authReady: boolean;
   isConnected: boolean;
   authLoading: boolean;
   authError: string | null;
   activeSessionCode: string;
   setActiveSessionCode: (code: string) => void;
-  signInWithGoogle: () => Promise<void>;
+  signInWithAdmin: (username: string, password: string) => Promise<boolean>;
   signOutUser: () => Promise<void>;
   clearAuthError: () => void;
 }
 
 const FirebaseContext = createContext<FirebaseContextValue>({
   user: null,
-  authReady: false,
+  authReady: true,
   isConnected: false,
   authLoading: false,
   authError: null,
   activeSessionCode: '',
   setActiveSessionCode: () => {},
-  signInWithGoogle: async () => {},
+  signInWithAdmin: async () => false,
   signOutUser: async () => {},
   clearAuthError: () => {},
 });
@@ -50,8 +66,13 @@ function getTimeMillis(ts: unknown): number {
 }
 
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [authReady, setAuthReady] = useState(false);
+  const [user, setUser] = useState<AdminUser | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(ADMIN_SESSION_STORAGE_KEY) === '1'
+      ? ADMIN_ACCOUNT
+      : null;
+  });
+  const authReady = true;
   const [isConnected, setIsConnected] = useState(isFirebaseConfigured && navigator.onLine);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -74,11 +95,6 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthReady(true);
-    });
-
     let mounted = true;
     const check = async () => {
       if (!isFirebaseConfigured || !navigator.onLine) {
@@ -100,6 +116,8 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       if (e.key === ACTIVE_CODE_STORAGE_KEY) {
         const next = e.newValue || '';
         setActiveSessionCodeState(/^[0-9]{6}$/.test(next) ? next : '');
+      } else if (e.key === ADMIN_SESSION_STORAGE_KEY) {
+        setUser(e.newValue === '1' ? ADMIN_ACCOUNT : null);
       }
     };
 
@@ -109,7 +127,6 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
-      unsubscribe();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('storage', handleStorage);
@@ -165,21 +182,31 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, [authReady, user]);
 
-  const signInWithGoogle = async () => {
+  const signInWithAdmin = async (
+    username: string,
+    password: string
+  ): Promise<boolean> => {
     setAuthLoading(true);
     setAuthError(null);
     try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Gagal masuk dengan akun Google.';
-      if (message.includes('popup-closed-by-user')) {
-        setAuthError('Jendela login Google ditutup sebelum selesai.');
-      } else if (message.includes('popup-blocked')) {
-        setAuthError('Popup login diblokir oleh browser. Izinkan popup lalu coba lagi.');
-      } else {
-        setAuthError('Tidak dapat masuk dengan Google. Periksa koneksi Anda dan coba lagi.');
+      const normalizedUser = username.trim().toLowerCase();
+      const isValidUser =
+        normalizedUser === ADMIN_CREDENTIALS.username ||
+        normalizedUser === ADMIN_CREDENTIALS.email;
+      const isValidPass = password === ADMIN_CREDENTIALS.password;
+
+      if (!isValidUser || !isValidPass) {
+        setAuthError(
+          'Username atau kata sandi admin tidak sesuai. Periksa kembali kredensial Anda.'
+        );
+        return false;
       }
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, '1');
+      }
+      setUser(ADMIN_ACCOUNT);
+      return true;
     } finally {
       setAuthLoading(false);
     }
@@ -187,7 +214,10 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
   const signOutUser = async () => {
     setAuthError(null);
-    await signOut(auth);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+    }
+    setUser(null);
   };
 
   const clearAuthError = () => setAuthError(null);
@@ -202,7 +232,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         authError,
         activeSessionCode,
         setActiveSessionCode,
-        signInWithGoogle,
+        signInWithAdmin,
         signOutUser,
         clearAuthError,
       }}
